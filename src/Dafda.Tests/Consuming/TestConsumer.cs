@@ -7,6 +7,7 @@ using Dafda.Tests.Builders;
 using Dafda.Tests.TestDoubles;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Polly;
 using Xunit;
 
 namespace Dafda.Tests.Consuming
@@ -37,6 +38,45 @@ namespace Dafda.Tests.Consuming
             await sut.ConsumeSingle(CancellationToken.None);
 
             handlerMock.Verify(x => x.Handle(It.IsAny<FooMessage>(), It.IsAny<MessageHandlerContext>(), It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task handler_is_invoked_in_resiliencepipeline()
+        {
+            var handlerMock = new Mock<IMessageHandler<FooMessage>>();
+            handlerMock.SetupSequence(x => x.Handle(It.IsAny<FooMessage>(), It.IsAny<MessageHandlerContext>(), It.IsAny<CancellationToken>()))
+                .Returns(Task.FromException(new Exception("Simulated transient failure")))
+                .Returns(Task.FromException(new Exception("Simulated transient failure")))
+                .Returns(Task.CompletedTask);
+            var handlerStub = handlerMock.Object;
+
+            var messageRegistrationStub = new MessageRegistrationBuilder()
+                .WithHandlerInstanceType(handlerStub.GetType())
+                .WithMessageInstanceType(typeof(FooMessage))
+                .WithMessageType("foo")
+                .WithTopic("")
+                .Build();
+
+            var registry = new MessageHandlerRegistry();
+            registry.Register(messageRegistrationStub);
+
+            var resiliencePipeline = new ResiliencePipelineBuilder()
+                .AddRetry(new ()
+                {
+                    MaxRetryAttempts = 5,
+                    Delay = TimeSpan.Zero
+                })
+                .Build();
+
+            var sut = new ConsumerBuilder()
+                .WithUnitOfWork(new UnitOfWorkStub(handlerStub))
+                .WithMessageHandlerRegistry(registry)
+                .WithResiliencePipeline(messageRegistrationStub, resiliencePipeline)
+                .Build();
+
+            await sut.ConsumeSingle(CancellationToken.None);
+
+            handlerMock.Verify(x => x.Handle(It.IsAny<FooMessage>(), It.IsAny<MessageHandlerContext>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
         }
 
         [Fact]
