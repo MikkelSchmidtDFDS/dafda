@@ -1,5 +1,7 @@
 ﻿using Dafda.Consuming;
 using Dafda.Tests.TestDoubles;
+using Polly;
+using Polly.Registry;
 
 namespace Dafda.Tests.Builders
 {
@@ -7,10 +9,12 @@ namespace Dafda.Tests.Builders
     {
         private MessageHandlerRegistry _messageHandlerRegistry;
         private IHandlerUnitOfWorkFactory _handlerUnitOfWorkFactory;
+        private ResiliencePipelineProviderStub _resiliencePipelineProvider;
 
         public LocalMessageDispatcherBuilder()
         {
             _messageHandlerRegistry = new MessageHandlerRegistry();
+            _resiliencePipelineProvider = new ResiliencePipelineProviderStub();
         }
 
         public LocalMessageDispatcherBuilder WithMessageHandlerRegistry(MessageHandlerRegistry messageHandlerRegistry)
@@ -30,12 +34,19 @@ namespace Dafda.Tests.Builders
             return WithHandlerUnitOfWorkFactory(new HandlerUnitOfWorkFactoryStub(unitOfWork));
         }
 
+        public LocalMessageDispatcherBuilder WithResiliencePipeline(MessageRegistration registration, ResiliencePipeline resiliencePipeline)
+        {
+            _resiliencePipelineProvider.AddPipeline(registration, resiliencePipeline);
+            return this;
+        }
+
         public LocalMessageDispatcher Build()
         {
             return new LocalMessageDispatcher(
                 _messageHandlerRegistry,
                 _handlerUnitOfWorkFactory,
-                new RequireExplicitHandlers());
+                new RequireExplicitHandlers(),
+                _resiliencePipelineProvider);
         }
     }
 }

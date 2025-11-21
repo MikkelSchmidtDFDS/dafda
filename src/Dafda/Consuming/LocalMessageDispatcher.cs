@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Polly;
+using Polly.Registry;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,11 +11,13 @@ namespace Dafda.Consuming
         private readonly MessageHandlerRegistry _messageHandlerRegistry;
         private readonly IHandlerUnitOfWorkFactory _unitOfWorkFactory;
         private readonly IUnconfiguredMessageHandlingStrategy _fallbackHandler;
+        private readonly ResiliencePipelineProvider<string> _resiliencePipelineProvider;
 
         public LocalMessageDispatcher(
             MessageHandlerRegistry messageHandlerRegistry,
             IHandlerUnitOfWorkFactory handlerUnitOfWorkFactory,
-            IUnconfiguredMessageHandlingStrategy fallbackHandler)
+            IUnconfiguredMessageHandlingStrategy fallbackHandler,
+            ResiliencePipelineProvider<string> resiliencePipelineProvider)
         {
             _messageHandlerRegistry =
                 messageHandlerRegistry
@@ -24,6 +28,9 @@ namespace Dafda.Consuming
             _fallbackHandler =
                 fallbackHandler
                 ?? throw new ArgumentNullException(nameof(fallbackHandler));
+            _resiliencePipelineProvider = 
+                resiliencePipelineProvider
+                ?? throw new ArgumentNullException(nameof(resiliencePipelineProvider));
         }
 
         private MessageRegistration GetMessageRegistrationFor(MessageResult messageResult)
@@ -45,26 +52,33 @@ namespace Dafda.Consuming
             var message = messageResult.Message;
             var messageInstance = message.ReadDataAs(registration.MessageInstanceType);
             var context = new MessageHandlerContext(message.Metadata);
-            await unitOfWork.Run(async (handler ,cancellationToken) =>
+            await unitOfWork.Run(async (handler, cancellationToken) =>
             {
                 if (handler == null)
                 {
                     throw new InvalidMessageHandlerException($"Error! Message handler of type \"{registration.HandlerInstanceType.FullName}\" not instantiated in unit of work and message instance type of \"{registration.MessageInstanceType}\" for message type \"{registration.MessageType}\" can therefor not be handled.");
                 }
 
+                var pipelineName = $"{registration.HandlerInstanceType.FullName}-{registration.Topic}-{registration.MessageType}";
+
+                if (!_resiliencePipelineProvider.TryGetPipeline(pipelineName, out var resiliencePipeline))
+                {
+                    resiliencePipeline = ResiliencePipeline.Empty;
+                }
                 // TODO -- verify that the handler is in fact an implementation of IMessageHandler<registration.MessageInstanceType> to provider sane error messages.
 
-                await ExecuteHandler((dynamic)messageInstance, (dynamic)handler, context, cancellationToken);
+                await resiliencePipeline.ExecuteAsync(async ct => await ExecuteHandler((dynamic) messageInstance, (dynamic) handler, context, ct), cancellationToken);
             }, cancellationToken);
         }
 
-        private static Task ExecuteHandler<TMessage>(
+        private static async Task<object> ExecuteHandler<TMessage>(
             TMessage message,
             IMessageHandler<TMessage> handler,
             MessageHandlerContext context,
             CancellationToken cancellationToken)
         {
-            return handler.Handle(message, context, cancellationToken);
+            await handler.Handle(message, context, cancellationToken);
+            return null;
         }
     }
 }

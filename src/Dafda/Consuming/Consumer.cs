@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Dafda.Consuming.Interfaces;
 using Dafda.Consuming.MessageFilters;
 using Dafda.Diagnostics;
+using Polly.Registry;
 
 namespace Dafda.Consuming
 {
@@ -19,6 +20,7 @@ namespace Dafda.Consuming
             IHandlerUnitOfWorkFactory unitOfWorkFactory,
             IConsumerScopeFactory consumerScopeFactory,
             IUnconfiguredMessageHandlingStrategy fallbackHandler,
+            ResiliencePipelineProvider<string> resiliencePipelineProvider,
             MessageFilter messageFilter,
             bool isAutoCommitEnabled = false)
         {
@@ -26,7 +28,8 @@ namespace Dafda.Consuming
                 new LocalMessageDispatcher(
                     messageHandlerRegistry,
                     unitOfWorkFactory,
-                    fallbackHandler);
+                    fallbackHandler,
+                    resiliencePipelineProvider);
             _consumerScopeFactory =
                 consumerScopeFactory
                 ?? throw new ArgumentNullException(nameof(consumerScopeFactory));

@@ -1,6 +1,8 @@
 ﻿using Dafda.Consuming;
 using Dafda.Consuming.MessageFilters;
 using Dafda.Tests.TestDoubles;
+using Polly;
+using Polly.Registry;
 
 namespace Dafda.Tests.Builders
 {
@@ -10,6 +12,7 @@ namespace Dafda.Tests.Builders
         private IConsumerScopeFactory _consumerScopeFactory;
         private MessageHandlerRegistry _registry;
         private IUnconfiguredMessageHandlingStrategy _unconfiguredMessageStrategy;
+        private ResiliencePipelineProviderStub _resiliencePipelineProvider;
 
         private bool _enableAutoCommit;
         private MessageFilter _messageFilter = MessageFilter.Default;
@@ -20,6 +23,7 @@ namespace Dafda.Tests.Builders
             _consumerScopeFactory = new ConsumerScopeFactoryStub(new ConsumerScopeStub(new MessageResultBuilder().Build()));
             _registry = new MessageHandlerRegistry();
             _unconfiguredMessageStrategy = new RequireExplicitHandlers();
+            _resiliencePipelineProvider = new ResiliencePipelineProviderStub();
         }
 
         public ConsumerBuilder WithUnitOfWork(IHandlerUnitOfWork unitOfWork)
@@ -63,12 +67,19 @@ namespace Dafda.Tests.Builders
             return this;
         }
 
+        public ConsumerBuilder WithResiliencePipeline(MessageRegistration registration, ResiliencePipeline resiliencePipeline)
+        {
+            _resiliencePipelineProvider.AddPipeline(registration, resiliencePipeline);
+            return this;
+        }
+
         public Consumer Build() =>
             new Consumer(
                 _registry,
                 _unitOfWorkFactory,
                 _consumerScopeFactory,
                 _unconfiguredMessageStrategy,
+                _resiliencePipelineProvider,
                 _messageFilter,
                 _enableAutoCommit);
     }

@@ -5,6 +5,8 @@ using Dafda.Consuming;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Registry;
 
 namespace Dafda.Configuration
 {
@@ -69,6 +71,7 @@ namespace Dafda.Configuration
                     provider.GetRequiredService<IHandlerUnitOfWorkFactory>(),
                     configuration.ConsumerScopeFactory(provider),
                     provider.GetRequiredService<IUnconfiguredMessageHandlingStrategy>(),
+                    provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
                     configuration.MessageFilter,
                     configuration.EnableAutoCommit
                 ),
@@ -78,6 +81,7 @@ namespace Dafda.Configuration
 
             services.AddTransient<IHostedService, ConsumerHostedService>(HostedServiceFactory);
             services.AddTransient<ConsumerHostedService>(HostedServiceFactory); // NOTE: [jandr] is this needed?
+            services.AddResiliencePipelineRegistry<string>();
         }
     }
 }

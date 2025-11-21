@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Dafda.Consuming;
 using Dafda.Consuming.MessageFilters;
 using Microsoft.Extensions.DependencyInjection;
+using Polly;
 
 namespace Dafda.Configuration
 {
@@ -167,9 +168,16 @@ namespace Dafda.Configuration
         /// <typeparam name="TMessageHandler">The message handler.</typeparam>
         /// <param name="topic">The name of the topic in Kafka.</param>
         /// <param name="messageType">The messageType as specified in the Dafda envelope in the Kafka message.</param>
-        public void RegisterMessageHandler<TMessage, TMessageHandler>(string topic, string messageType)
+        /// <param name="resiliencePipelineBuilderAction">The resilience pipeline builder action used to create the resilience pipeline for the handler.</param>
+        public void RegisterMessageHandler<TMessage, TMessageHandler>(string topic, string messageType, Action<ResiliencePipelineBuilder> resiliencePipelineBuilderAction = null)
             where TMessageHandler : class, IMessageHandler<TMessage>
         {
+            if (resiliencePipelineBuilderAction is not null)
+            {
+                var pipelineName = $"{typeof(TMessageHandler).FullName}-{topic}-{messageType}";
+                _services.AddResiliencePipeline(pipelineName, resiliencePipelineBuilderAction);
+            }
+            
             _builder.RegisterMessageHandler<TMessage, TMessageHandler>(topic, messageType);
             _services.AddTransient<TMessageHandler>();
         }
