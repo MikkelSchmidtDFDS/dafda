@@ -2,6 +2,7 @@
 using Dafda.Consuming;
 using Dafda.Consuming.Interfaces;
 using Dafda.Diagnostics;
+using Dafda.Polly;
 using Dafda.Tests.Builders;
 using Dafda.Tests.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,7 +46,7 @@ namespace Dafda.Tests.Configuration
                 options.WithGroupId("dummyGroupId");
                 options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>(dummyTopic, nameof(DummyMessage));
 
-                options.WithConsumerScopeFactory(_ =>new ConsumerScopeFactoryStub(new ConsumerScopeStub(messageResult)));
+                options.WithConsumerScopeFactory(_ => new ConsumerScopeFactoryStub(new ConsumerScopeStub(messageResult)));
             });
             var serviceProvider = services.BuildServiceProvider();
 
@@ -271,13 +272,13 @@ namespace Dafda.Tests.Configuration
         {
             var services = new ServiceCollection();
 
-            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
+            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().ContinueOnError().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
 
             services.AddConsumer(options =>
             {
                 options.WithBootstrapServers("dummyBootstrapServer");
                 options.WithGroupId("dummyGroupId 2");
-                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.AddTimeout(TimeSpan.FromSeconds(3)));
+                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.ContinueOnError().AddTimeout(TimeSpan.FromSeconds(3)));
             });
 
             var serviceProvider = services.BuildServiceProvider();
@@ -302,26 +303,13 @@ namespace Dafda.Tests.Configuration
             var defaultResiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithDefaultResiliencePipeline);
 
             var executionsOfResiliencePipeline = 0;
-            try
-            {
-                resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
-            }
-            catch { }
-            finally
-            {
-                Assert.Equal(1, executionsOfResiliencePipeline);
-            }
+            resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
+            Assert.Equal(1, executionsOfResiliencePipeline);
 
             var executionsOfDefaultPipeline = 0;
-            try
-            {
-                defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
-            }
-            catch { }
-            finally
-            {
-                Assert.Equal(4, executionsOfDefaultPipeline);
-            }
+            defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
+            Assert.Equal(4, executionsOfDefaultPipeline);
+
         }
 
         [Fact]
@@ -333,10 +321,10 @@ namespace Dafda.Tests.Configuration
             {
                 options.WithBootstrapServers("dummyBootstrapServer");
                 options.WithGroupId("dummyGroupId 2");
-                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.AddTimeout(TimeSpan.FromSeconds(3)));
+                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.ContinueOnError().AddTimeout(TimeSpan.FromSeconds(3)));
             });
 
-            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
+            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().ContinueOnError().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
 
             var serviceProvider = services.BuildServiceProvider();
 
@@ -360,26 +348,12 @@ namespace Dafda.Tests.Configuration
             var defaultResiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithDefaultResiliencePipeline);
 
             var executionsOfResiliencePipeline = 0;
-            try
-            {
-                resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
-            }
-            catch { }
-            finally
-            {
-                Assert.Equal(1, executionsOfResiliencePipeline);
-            }
+            resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
+            Assert.Equal(1, executionsOfResiliencePipeline);
 
             var executionsOfDefaultPipeline = 0;
-            try
-            {
-                defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
-            }
-            catch { }
-            finally
-            {
-                Assert.Equal(4, executionsOfDefaultPipeline);
-            }
+            defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
+            Assert.Equal(4, executionsOfDefaultPipeline);
         }
 
         [Fact]
