@@ -20,7 +20,7 @@ namespace Dafda.Consuming
             IHandlerUnitOfWorkFactory unitOfWorkFactory,
             IConsumerScopeFactory consumerScopeFactory,
             IUnconfiguredMessageHandlingStrategy fallbackHandler,
-            ResiliencePipelineProvider<string> resiliencePipelineProvider,
+            IResiliencePipelineProvider resiliencePipelineProvider,
             MessageFilter messageFilter,
             bool isAutoCommitEnabled = false)
         {

@@ -1,8 +1,9 @@
 ﻿using Dafda.Consuming;
+using Dafda.Consuming.Interfaces;
 using Dafda.Consuming.MessageFilters;
 using Dafda.Tests.TestDoubles;
+using Moq;
 using Polly;
-using Polly.Registry;
 
 namespace Dafda.Tests.Builders
 {
@@ -12,7 +13,8 @@ namespace Dafda.Tests.Builders
         private IConsumerScopeFactory _consumerScopeFactory;
         private MessageHandlerRegistry _registry;
         private IUnconfiguredMessageHandlingStrategy _unconfiguredMessageStrategy;
-        private ResiliencePipelineProviderStub _resiliencePipelineProvider;
+        private IResiliencePipelineProvider _resiliencePipelineProvider;
+        private readonly Mock<IResiliencePipelineProvider> _mockResiliencePipelineProvider;
 
         private bool _enableAutoCommit;
         private MessageFilter _messageFilter = MessageFilter.Default;
@@ -23,7 +25,9 @@ namespace Dafda.Tests.Builders
             _consumerScopeFactory = new ConsumerScopeFactoryStub(new ConsumerScopeStub(new MessageResultBuilder().Build()));
             _registry = new MessageHandlerRegistry();
             _unconfiguredMessageStrategy = new RequireExplicitHandlers();
-            _resiliencePipelineProvider = new ResiliencePipelineProviderStub();
+            _mockResiliencePipelineProvider = new Mock<IResiliencePipelineProvider>();
+            _mockResiliencePipelineProvider.Setup(m => m.GetPipelineFor(It.IsAny<MessageRegistration>())).Returns(ResiliencePipeline.Empty);
+            _resiliencePipelineProvider = _mockResiliencePipelineProvider.Object;
         }
 
         public ConsumerBuilder WithUnitOfWork(IHandlerUnitOfWork unitOfWork)
@@ -69,7 +73,7 @@ namespace Dafda.Tests.Builders
 
         public ConsumerBuilder WithResiliencePipeline(MessageRegistration registration, ResiliencePipeline resiliencePipeline)
         {
-            _resiliencePipelineProvider.AddPipeline(registration, resiliencePipeline);
+            _mockResiliencePipelineProvider.Setup(m => m.GetPipelineFor(registration)).Returns(resiliencePipeline);
             return this;
         }
 

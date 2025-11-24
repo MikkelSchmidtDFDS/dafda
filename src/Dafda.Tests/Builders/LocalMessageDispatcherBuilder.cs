@@ -1,7 +1,8 @@
 ﻿using Dafda.Consuming;
+using Dafda.Consuming.Interfaces;
 using Dafda.Tests.TestDoubles;
+using Moq;
 using Polly;
-using Polly.Registry;
 
 namespace Dafda.Tests.Builders
 {
@@ -9,12 +10,15 @@ namespace Dafda.Tests.Builders
     {
         private MessageHandlerRegistry _messageHandlerRegistry;
         private IHandlerUnitOfWorkFactory _handlerUnitOfWorkFactory;
-        private ResiliencePipelineProviderStub _resiliencePipelineProvider;
+        private readonly Mock<IResiliencePipelineProvider> _mockResiliencePipelineProvider;
+        private IResiliencePipelineProvider _resiliencePipelineProvider;
 
         public LocalMessageDispatcherBuilder()
         {
             _messageHandlerRegistry = new MessageHandlerRegistry();
-            _resiliencePipelineProvider = new ResiliencePipelineProviderStub();
+            _mockResiliencePipelineProvider = new Mock<IResiliencePipelineProvider>();
+            _mockResiliencePipelineProvider.Setup(m => m.GetPipelineFor(It.IsAny<MessageRegistration>())).Returns(ResiliencePipeline.Empty);
+            _resiliencePipelineProvider = _mockResiliencePipelineProvider.Object;
         }
 
         public LocalMessageDispatcherBuilder WithMessageHandlerRegistry(MessageHandlerRegistry messageHandlerRegistry)
@@ -32,12 +36,6 @@ namespace Dafda.Tests.Builders
         public LocalMessageDispatcherBuilder WithHandlerUnitOfWork(IHandlerUnitOfWork unitOfWork)
         {
             return WithHandlerUnitOfWorkFactory(new HandlerUnitOfWorkFactoryStub(unitOfWork));
-        }
-
-        public LocalMessageDispatcherBuilder WithResiliencePipeline(MessageRegistration registration, ResiliencePipeline resiliencePipeline)
-        {
-            _resiliencePipelineProvider.AddPipeline(registration, resiliencePipeline);
-            return this;
         }
 
         public LocalMessageDispatcher Build()

@@ -1,10 +1,6 @@
-﻿using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Dafda.Configuration;
+﻿using Dafda.Configuration;
 using Dafda.Consuming;
+using Dafda.Consuming.Interfaces;
 using Dafda.Diagnostics;
 using Dafda.Tests.Builders;
 using Dafda.Tests.TestDoubles;
@@ -12,6 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
+using Polly;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Dafda.Tests.Configuration
@@ -261,6 +264,159 @@ namespace Dafda.Tests.Configuration
             await consumerHostedService.ConsumeAll(CancellationToken.None);
 
             Assert.Equal(failuresBeforeQuitting + 1, count);
+        }
+
+        [Fact]
+        public void registering_default_resilience_pipeline_before_registering_handlers_registers_correct_resilience_pipelines()
+        {
+            var services = new ServiceCollection();
+
+            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
+
+            services.AddConsumer(options =>
+            {
+                options.WithBootstrapServers("dummyBootstrapServer");
+                options.WithGroupId("dummyGroupId 2");
+                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.AddTimeout(TimeSpan.FromSeconds(3)));
+            });
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            var resiliencePipelineProvider = serviceProvider.GetRequiredService<IResiliencePipelineProvider>();
+
+            var registrationWithResiliencePipeline = new MessageRegistrationBuilder()
+                .WithTopic("dummyTopic")
+                .WithMessageType(nameof(DummyMessage))
+                .WithHandlerInstanceType(typeof(DummyMessageHandler))
+                .WithMessageInstanceType(typeof(DummyMessage))
+                .Build();
+
+            var registrationWithDefaultResiliencePipeline = new MessageRegistrationBuilder()
+                .WithTopic("something-else")
+                .WithMessageType("something-else")
+                .WithHandlerInstanceType(typeof(DummyMessageHandler))
+                .WithMessageInstanceType(typeof(DummyMessage))
+                .Build();
+
+            var resiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithResiliencePipeline);
+            var defaultResiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithDefaultResiliencePipeline);
+
+            var executionsOfResiliencePipeline = 0;
+            try
+            {
+                resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
+            }
+            catch { }
+            finally
+            {
+                Assert.Equal(1, executionsOfResiliencePipeline);
+            }
+
+            var executionsOfDefaultPipeline = 0;
+            try
+            {
+                defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
+            }
+            catch { }
+            finally
+            {
+                Assert.Equal(4, executionsOfDefaultPipeline);
+            }
+        }
+
+        [Fact]
+        public void registering_default_resilience_pipeline_after_registering_handlers_registers_correct_resilience_pipelines()
+        {
+            var services = new ServiceCollection();
+
+            services.AddConsumer(options =>
+            {
+                options.WithBootstrapServers("dummyBootstrapServer");
+                options.WithGroupId("dummyGroupId 2");
+                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage), b => b.AddTimeout(TimeSpan.FromSeconds(3)));
+            });
+
+            services.AddDefaultConsumerResiliencePipeline(new ResiliencePipelineBuilder().AddRetry(new() { MaxRetryAttempts = 3, Delay = TimeSpan.Zero }));
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            var resiliencePipelineProvider = serviceProvider.GetRequiredService<IResiliencePipelineProvider>();
+
+            var registrationWithResiliencePipeline = new MessageRegistrationBuilder()
+                .WithTopic("dummyTopic")
+                .WithMessageType(nameof(DummyMessage))
+                .WithHandlerInstanceType(typeof(DummyMessageHandler))
+                .WithMessageInstanceType(typeof(DummyMessage))
+                .Build();
+
+            var registrationWithDefaultResiliencePipeline = new MessageRegistrationBuilder()
+                .WithTopic("something-else")
+                .WithMessageType("something-else")
+                .WithHandlerInstanceType(typeof(DummyMessageHandler))
+                .WithMessageInstanceType(typeof(DummyMessage))
+                .Build();
+
+            var resiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithResiliencePipeline);
+            var defaultResiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithDefaultResiliencePipeline);
+
+            var executionsOfResiliencePipeline = 0;
+            try
+            {
+                resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
+            }
+            catch { }
+            finally
+            {
+                Assert.Equal(1, executionsOfResiliencePipeline);
+            }
+
+            var executionsOfDefaultPipeline = 0;
+            try
+            {
+                defaultResiliencePipeline.Execute(() => { executionsOfDefaultPipeline++; throw new Exception(); });
+            }
+            catch { }
+            finally
+            {
+                Assert.Equal(4, executionsOfDefaultPipeline);
+            }
+        }
+
+        [Fact]
+        public void not_registering_resilience_pipeline_no_resiliency_used()
+        {
+            var services = new ServiceCollection();
+
+            services.AddConsumer(options =>
+            {
+                options.WithBootstrapServers("dummyBootstrapServer");
+                options.WithGroupId("dummyGroupId 2");
+                options.RegisterMessageHandler<DummyMessage, DummyMessageHandler>("dummyTopic", nameof(DummyMessage));
+            });
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            var resiliencePipelineProvider = serviceProvider.GetRequiredService<IResiliencePipelineProvider>();
+
+            var registrationWithResiliencePipeline = new MessageRegistrationBuilder()
+                .WithTopic("dummyTopic")
+                .WithMessageType(nameof(DummyMessage))
+                .WithHandlerInstanceType(typeof(DummyMessageHandler))
+                .WithMessageInstanceType(typeof(DummyMessage))
+                .Build();
+
+            var resiliencePipeline = resiliencePipelineProvider.GetPipelineFor(registrationWithResiliencePipeline);
+
+            var executionsOfResiliencePipeline = 0;
+            try
+            {
+                resiliencePipeline.Execute(() => { executionsOfResiliencePipeline++; throw new Exception(); });
+            }
+            catch { }
+            finally
+            {
+                Assert.Equal(1, executionsOfResiliencePipeline);
+            }
         }
 
         public class DummyMessage

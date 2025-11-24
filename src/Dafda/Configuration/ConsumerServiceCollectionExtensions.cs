@@ -1,12 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Dafda.Consuming;
+using Dafda.Consuming.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Registry;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Dafda.Configuration
 {
@@ -71,7 +73,7 @@ namespace Dafda.Configuration
                     provider.GetRequiredService<IHandlerUnitOfWorkFactory>(),
                     configuration.ConsumerScopeFactory(provider),
                     provider.GetRequiredService<IUnconfiguredMessageHandlingStrategy>(),
-                    provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
+                    provider.GetRequiredService<IResiliencePipelineProvider>(),
                     configuration.MessageFilter,
                     configuration.EnableAutoCommit
                 ),
@@ -82,6 +84,30 @@ namespace Dafda.Configuration
             services.AddTransient<IHostedService, ConsumerHostedService>(HostedServiceFactory);
             services.AddTransient<ConsumerHostedService>(HostedServiceFactory); // NOTE: [jandr] is this needed?
             services.AddResiliencePipelineRegistry<string>();
+            // The thing below with try add and empty builder
+            services.TryAddSingleton<IResiliencePipelineProvider>(services =>
+            {
+                return new MessageRegistrationResiliencePipelineProvider(
+                    services.GetRequiredService<ResiliencePipelineProvider<string>>(),
+                    new());
+            });
+        }
+
+        /// <summary>
+        /// Registers a default resilience pipeline to be used for messagehandlers without explicitly set resilience pipelines.
+        /// Each message registration will have its own resilience pipeline instance.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> used in <c>Startup</c>.</param>
+        /// <param name="builder">The ResiliencePipelineBuilder used to configure the build resilience pipeline.</param>
+        public static IServiceCollection AddDefaultConsumerResiliencePipeline(this IServiceCollection services, ResiliencePipelineBuilder builder)
+        {
+            services.AddResiliencePipelineRegistry<string>();
+            return services.AddSingleton<IResiliencePipelineProvider>(services =>
+            {
+                return new MessageRegistrationResiliencePipelineProvider(
+                    services.GetRequiredService<ResiliencePipelineProvider<string>>(),
+                    builder);
+            });
         }
     }
 }

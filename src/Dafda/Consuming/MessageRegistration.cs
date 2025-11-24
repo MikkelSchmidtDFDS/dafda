@@ -23,6 +23,7 @@ namespace Dafda.Consuming
             MessageInstanceType = messageInstanceType;
             MessageType = messageType;
             Topic = EnsureValidTopicName(topic);
+            ResiliencePipelineGroup = $"{HandlerInstanceType.FullName}-{Topic}-{messageType}";
         }
 
         private static string EnsureValidTopicName(string topicName)
@@ -58,5 +59,8 @@ namespace Dafda.Consuming
         public string Topic { get; }
         /// <summary>The name of the message type as sent over kafka</summary>
         public string MessageType { get; }
+
+        /// <summary>A string representing which resilience pipeline to use</summary>
+        public string ResiliencePipelineGroup { get; }
     }
 }

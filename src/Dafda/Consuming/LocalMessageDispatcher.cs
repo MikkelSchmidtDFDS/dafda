@@ -1,4 +1,5 @@
-﻿using Polly;
+﻿using Dafda.Consuming.Interfaces;
+using Polly;
 using Polly.Registry;
 using System;
 using System.Threading;
@@ -11,13 +12,13 @@ namespace Dafda.Consuming
         private readonly MessageHandlerRegistry _messageHandlerRegistry;
         private readonly IHandlerUnitOfWorkFactory _unitOfWorkFactory;
         private readonly IUnconfiguredMessageHandlingStrategy _fallbackHandler;
-        private readonly ResiliencePipelineProvider<string> _resiliencePipelineProvider;
+        private readonly IResiliencePipelineProvider _resiliencePipelineProvider;
 
         public LocalMessageDispatcher(
             MessageHandlerRegistry messageHandlerRegistry,
             IHandlerUnitOfWorkFactory handlerUnitOfWorkFactory,
             IUnconfiguredMessageHandlingStrategy fallbackHandler,
-            ResiliencePipelineProvider<string> resiliencePipelineProvider)
+            IResiliencePipelineProvider resiliencePipelineProvider)
         {
             _messageHandlerRegistry =
                 messageHandlerRegistry
@@ -61,11 +62,7 @@ namespace Dafda.Consuming
 
                 var pipelineName = $"{registration.HandlerInstanceType.FullName}-{registration.Topic}-{registration.MessageType}";
 
-                if (!_resiliencePipelineProvider.TryGetPipeline(pipelineName, out var resiliencePipeline))
-                {
-                    resiliencePipeline = ResiliencePipeline.Empty;
-                }
-                // TODO -- verify that the handler is in fact an implementation of IMessageHandler<registration.MessageInstanceType> to provider sane error messages.
+                var resiliencePipeline = _resiliencePipelineProvider.GetPipelineFor(registration);
 
                 await resiliencePipeline.ExecuteAsync(async ct => await ExecuteHandler((dynamic) messageInstance, (dynamic) handler, context, ct), cancellationToken);
             }, cancellationToken);
