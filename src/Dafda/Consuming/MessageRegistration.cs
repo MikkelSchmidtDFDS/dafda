@@ -15,7 +15,8 @@ namespace Dafda.Consuming
             Type handlerInstanceType,
             Type messageInstanceType,
             string topic,
-            string messageType)
+            string messageType,
+            string resiliencePipelineGroup)
         {
             EnsureProperHandlerType(handlerInstanceType, messageInstanceType);
 
@@ -23,7 +24,7 @@ namespace Dafda.Consuming
             MessageInstanceType = messageInstanceType;
             MessageType = messageType;
             Topic = EnsureValidTopicName(topic);
-            ResiliencePipelineGroup = $"{HandlerInstanceType.FullName}-{Topic}-{messageType}";
+            ResiliencePipelineGroup = resiliencePipelineGroup;
         }
 
         private static string EnsureValidTopicName(string topicName)

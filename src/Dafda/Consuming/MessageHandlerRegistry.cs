@@ -8,24 +8,26 @@ namespace Dafda.Consuming
     {
         private readonly List<MessageRegistration> _registrations = new List<MessageRegistration>();
 
-        public void Register<TMessage, THandler>(string topic, string messageType)
+        public void Register<TMessage, THandler>(string topic, string messageType, string resiliencePipelineGroup)
             where THandler : IMessageHandler<TMessage>
         {
             Register(
                 handlerInstanceType: typeof(THandler),
                 messageInstanceType: typeof(TMessage),
                 topic: topic,
-                messageType: messageType
+                messageType: messageType,
+                resiliencePipelineGroup: resiliencePipelineGroup
             );
         }
 
-        public MessageRegistration Register(Type handlerInstanceType, Type messageInstanceType, string topic, string messageType)
+        public MessageRegistration Register(Type handlerInstanceType, Type messageInstanceType, string topic, string messageType, string resiliencePipelineGroup)
         {
             var registration = new MessageRegistration(
                 handlerInstanceType: handlerInstanceType,
                 messageInstanceType: messageInstanceType,
                 topic: topic,
-                messageType: messageType
+                messageType: messageType,
+                resiliencePipelineGroup: resiliencePipelineGroup
             );
 
             Register(registration);

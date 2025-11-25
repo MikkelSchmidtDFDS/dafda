@@ -67,11 +67,12 @@ namespace Dafda.Tests.Configuration
         {
             const string topic = "dummyTopic";
             const string messageType = nameof(DummyMessage);
+            const string resilienceGroup = "resilienceGroup";
 
             var configuration = new ConsumerConfigurationBuilder()
                 .WithGroupId("foo")
                 .WithBootstrapServers("bar")
-                .RegisterMessageHandler<DummyMessage, DummyMessageHandler>(topic, messageType)
+                .RegisterMessageHandler<DummyMessage, DummyMessageHandler>(topic, messageType, resilienceGroup)
                 .Build();
 
             var registration = configuration.MessageHandlerRegistry.GetRegistrationFor(topic, messageType);

@@ -172,13 +172,13 @@ namespace Dafda.Configuration
         public void RegisterMessageHandler<TMessage, TMessageHandler>(string topic, string messageType, Action<ResiliencePipelineBuilder> resiliencePipelineBuilderAction = null)
             where TMessageHandler : class, IMessageHandler<TMessage>
         {
+            var resiliencePipelineGroup = $"{typeof(TMessageHandler).FullName}-{topic}-{messageType}";
             if (resiliencePipelineBuilderAction is not null)
             {
-                var pipelineName = $"{typeof(TMessageHandler).FullName}-{topic}-{messageType}";
-                _services.AddResiliencePipeline(pipelineName, resiliencePipelineBuilderAction);
+                _services.AddResiliencePipeline(resiliencePipelineGroup, resiliencePipelineBuilderAction);
             }
             
-            _builder.RegisterMessageHandler<TMessage, TMessageHandler>(topic, messageType);
+            _builder.RegisterMessageHandler<TMessage, TMessageHandler>(topic, messageType, resiliencePipelineGroup);
             _services.AddTransient<TMessageHandler>();
         }
 

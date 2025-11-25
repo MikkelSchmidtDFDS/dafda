@@ -50,7 +50,8 @@ namespace Dafda.Tests.Builders
                 topic: _topic,
                 messageType: _messageType,
                 handlerInstanceType: _handlerInstanceType,
-                messageInstanceType: _messageInstanceType
+                messageInstanceType: _messageInstanceType,
+                resiliencePipelineGroup: $"{_handlerInstanceType.FullName}-{_topic}-{_messageType}"
             );
         }
 
