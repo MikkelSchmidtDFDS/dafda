@@ -84,7 +84,7 @@ namespace Dafda.Configuration
             services.AddTransient<IHostedService, ConsumerHostedService>(HostedServiceFactory);
             services.AddTransient<ConsumerHostedService>(HostedServiceFactory); // NOTE: [jandr] is this needed?
             services.AddResiliencePipelineRegistry<string>();
-            // The thing below with try add and empty builder
+            
             services.TryAddSingleton<IResiliencePipelineProvider>(services =>
             {
                 return new MessageRegistrationResiliencePipelineProvider(
